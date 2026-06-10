@@ -1,0 +1,592 @@
+javascript: (function () {
+  if (window.wpmSolverBotExists) {
+    alert("سكربت المساعد الذكي شغال بالفعل!");
+    return;
+  }
+  window.wpmSolverBotExists = window.solverBotEnabled = true;
+
+  // 1. إنشاء زر الإعادة العائم
+  const restoreBtn = document.createElement("div");
+  Object.assign(restoreBtn.style, {
+    position: "fixed", top: "10px", right: "10px", zIndex: "100001",
+    backgroundColor: "#3498db", color: "#fff", padding: "6px 10px",
+    borderRadius: "20px", boxShadow: "0 2px 10px rgba(0,0,0,0.5)",
+    fontFamily: "Arial, sans-serif", fontSize: "11px", cursor: "pointer",
+    fontWeight: "bold", display: "none", direction: "rtl"
+  });
+  restoreBtn.textContent = "👁️ إظهار اللوحة";
+  document.body.appendChild(restoreBtn);
+
+  // 2. إنشاء واجهة التحكم الرئيسية
+  const panel = document.createElement("div");
+  Object.assign(panel.style, {
+    position: "fixed", top: "10px", right: "10px", zIndex: "100000",
+    backgroundColor: "#1a1a1a", color: "#fff", padding: "12px",
+    borderRadius: "10px", boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
+    fontFamily: "Arial, sans-serif", fontSize: "12px", direction: "rtl",
+    width: "220px", border: "1px solid #3498db"
+  });
+  panel.innerHTML = `
+    <div style="font-weight:bold; text-align:center; margin-bottom:8px; color:#3498db; border-bottom:1px solid #333; padding-bottom:5px; font-size:13px; position:relative;">
+      ⚡ حلال M8AL BOT الاحترافي
+    </div>
+    <div style="margin-bottom:6px;">المساعد: <span id="solver-status" style="color:#2ecc71; font-weight:bold;">يعمل</span></div>
+    <div style="margin-bottom:6px;">الطلب الذاتي: <span id="auto-req-status" style="color:#2ecc71; font-weight:bold;">نشط</span></div>
+    <div style="margin-bottom:6px;">القسم النشط: <span id="current-mode-lbl" style="color:#f1c40f; font-weight:bold;">ويكي</span></div>
+    <div style="margin-bottom:6px; background:#222; padding:4px; border-radius:4px; border-right:3px solid #f39c12;">🎯 الخطأ القادم بعد: <span id="typo-status-lbl" style="color:#f39c12; font-weight:bold;">0 / 0</span></div>
+    
+    <div style="margin-bottom:8px; background:#2c1a1a; padding:5px; border-radius:4px; border-right:3px solid #e74c3c;">
+      <div style="color:#e74c3c; font-weight:bold; margin-bottom:6px; text-align:center; font-size:11px;">🎯 التحكم بسرعة الطباعة (WPM)</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span style="font-size:11px; color:#ccc;">أدنى:</span>
+        <input id="min-wpm-input" type="number" placeholder="70" style="width:45px; background:#111; color:#fff; border:1px solid #e74c3c; border-radius:4px; padding:2px; text-align:center; font-weight:bold; font-size:11px; outline:none;" />
+        <span style="font-size:11px; color:#ccc;">أقصى:</span>
+        <input id="max-wpm-input" type="number" placeholder="105" style="width:45px; background:#111; color:#fff; border:1px solid #e74c3c; border-radius:4px; padding:2px; text-align:center; font-weight:bold; font-size:11px; outline:none;" />
+      </div>
+      <button id="lock-wpm-btn" style="width:100%; background:#27ae60; color:#fff; border:none; padding:4px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:11px; transition: 0.3s;">🔒 تثبيت السرعة</button>
+    </div>
+
+    <div style="margin-bottom:6px; background:#222; padding:4px; border-radius:4px; border-right:3px solid #3498db;">📊 السرعة اللحظية: <span id="live-wpm-lbl" style="color:#3498db; font-weight:bold; font-size:14px;">---</span> <span style="font-size:10px; color:#aaa;">WPM</span></div>
+    <div style="margin-bottom:8px; background:#222; padding:4px; border-radius:4px; border-right:3px solid #9b59b6;">🎯 المستهدفة للكبس: <span id="target-wpm-lbl" style="color:#9b59b6; font-weight:bold; font-size:14px;">---</span> <span style="font-size:10px; color:#aaa;">WPM</span></div>
+    
+    <label style="display:block; margin-bottom:4px; color:#aaa;">تغيير القسم يدوياً:</label>
+    <select id="mode-select" style="width:100%; background:#333; color:#fff; border:1px solid #555; padding:4px; border-radius:4px; cursor:pointer; font-size:11px;">
+      <option value="wiki">ويكي</option>
+      <option value="jash">جش</option>
+      <option value="shart">شرط</option>
+      <option value="as">اص</option>
+      <option value="tash">جب</option>
+      <option value="raq">رق</option>
+      <option value="karar">كرر</option>
+      <option value="dabl">دبل</option>
+    </select>
+    
+    <button id="toggle-solver-btn" style="width:100%; margin-top:8px; background:#d35400; color:#fff; border:none; padding:5px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:11px;">إيقاف مؤقت التلقائي</button>
+    <button id="toggle-commands-btn" style="width:100%; margin-top:5px; background:#2980b9; color:#fff; border:none; padding:5px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:11px;">❌ تعطيل إرسال الأوامر</button>
+    
+    <div style="display:flex; gap:5px; margin-top:5px;">
+      <button id="hide-panel-btn" style="flex:1; background:#7f8c8d; color:#fff; border:none; padding:5px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:11px;">👁️ إخفاء اللوحة</button>
+      <button id="destroy-script-btn" style="flex:1; background:#c0392b; color:#fff; border:none; padding:5px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:11px;">🛑 إطفاء نهائي</button>
+    </div>
+  `;
+  document.body.appendChild(panel);
+
+  const statusLbl = document.getElementById("solver-status");
+  const autoReqLbl = document.getElementById("auto-req-status");
+  const modeLbl = document.getElementById("current-mode-lbl");
+  const modeSelect = document.getElementById("mode-select");
+  const toggleBtn = document.getElementById("toggle-solver-btn");
+  const toggleCommandsBtn = document.getElementById("toggle-commands-btn");
+  const liveWpmLbl = document.getElementById("live-wpm-lbl");
+  const targetWpmLbl = document.getElementById("target-wpm-lbl");
+  
+  const minWpmInput = document.getElementById("min-wpm-input");
+  const maxWpmInput = document.getElementById("max-wpm-input");
+  const lockWpmBtn = document.getElementById("lock-wpm-btn");
+  
+  const hideBtn = document.getElementById("hide-panel-btn");
+  const destroyBtn = document.getElementById("destroy-script-btn");
+  const typoStatusLbl = document.getElementById("typo-status-lbl");
+
+  let disableBotCommands = false;
+  let cleanSentenceCount = 0;
+  let targetCleanLimit = Math.floor(Math.random() * 13) + 1; 
+  let isWpmLocked = false;
+  let currentTypeInterval = null; 
+  let sendTimeout = null;
+
+  hideBtn.addEventListener("click", () => { panel.style.display = "none"; restoreBtn.style.display = "block"; });
+  restoreBtn.addEventListener("click", () => { restoreBtn.style.display = "none"; panel.style.display = "block"; });
+  destroyBtn.addEventListener("click", () => { destroyScriptComplete(); });
+
+  lockWpmBtn.addEventListener("click", () => {
+    isWpmLocked = !isWpmLocked;
+    if (isWpmLocked) {
+      lockWpmBtn.textContent = "🔓 إلغاء التثبيت";
+      lockWpmBtn.style.backgroundColor = "#e67e22"; 
+      minWpmInput.disabled = true;
+      maxWpmInput.disabled = true;
+      minWpmInput.style.opacity = "0.5";
+      maxWpmInput.style.opacity = "0.5";
+    } else {
+      lockWpmBtn.textContent = "🔒 تثبيت السرعة";
+      lockWpmBtn.style.backgroundColor = "#27ae60"; 
+      minWpmInput.disabled = false;
+      maxWpmInput.disabled = false;
+      minWpmInput.style.opacity = "1";
+      maxWpmInput.style.opacity = "1";
+    }
+  });
+
+  toggleBtn.addEventListener("click", () => {
+    window.solverBotEnabled = !window.solverBotEnabled;
+    if (window.solverBotEnabled) {
+      statusLbl.textContent = "يعمل"; statusLbl.style.color = "#2ecc71";
+      toggleBtn.textContent = "إيقاف مؤقت التلقائي"; toggleBtn.style.backgroundColor = "#d35400";
+      resetBotWatchdog();
+    } else {
+      statusLbl.textContent = "متوقف"; statusLbl.style.color = "#e74c3c";
+      toggleBtn.textContent = "تشغيل التلقائي"; toggleBtn.style.backgroundColor = "#2ecc71";
+      clearTimeout(sendTimeout); clearTimeout(botWatchdogTimeout); clearInterval(liveWpmInterval); clearTimeout(currentTypeInterval);
+      liveWpmLbl.textContent = "---"; targetWpmLbl.textContent = "---";
+    }
+  });
+
+  toggleCommandsBtn.addEventListener("click", () => {
+    disableBotCommands = !disableBotCommands;
+    if (disableBotCommands) {
+      toggleCommandsBtn.textContent = "🔒 الإرسال معطل (حل فقط)";
+      toggleCommandsBtn.style.backgroundColor = "#c0392b";
+    } else {
+      toggleCommandsBtn.textContent = "❌ تعطيل إرسال الأوامر";
+      toggleCommandsBtn.style.backgroundColor = "#2980b9";
+    }
+  });
+
+  modeSelect.addEventListener("change", (e) => { currentMode = e.target.value; updateUI(); });
+
+  function updateUI() {
+    const modeMapInverse = { wiki: "ويكي", jash: "جش", shart: "شرط", as: "اص", tash: "جب", raq: "رق", karar: "كرر", dabl: "دبل" };
+    modeLbl.textContent = modeMapInverse[currentMode] || currentMode;
+    modeSelect.value = currentMode;
+    if (isAutoRequestBlocked) {
+      autoReqLbl.textContent = "متوقف (لاعب آخر)";
+      autoReqLbl.style.color = "#e74c3c";
+    } else {
+      autoReqLbl.textContent = "نشط"; autoReqLbl.style.color = "#2ecc71";
+    }
+    if (typoStatusLbl) {
+      typoStatusLbl.textContent = cleanSentenceCount + " / " + targetCleanLimit;
+    }
+  }
+
+  let currentMode = "wiki";
+  let lastShartCondition = "";
+  let tournamentModes = [];
+  let tournamentIdx = 0;
+  let inTournament = false;
+  let isFirstRound = true;
+
+  let isAutoRequestBlocked = false;
+  let idleRequestTimeout = null;
+  let botWatchdogTimeout = null;
+  let liveWpmInterval = null;
+  let iSentThisCommand = false;
+
+  function destroyScriptComplete() {
+    window.wpmSolverBotExists = false; window.solverBotEnabled = false;
+    clearTimeout(sendTimeout); clearTimeout(botWatchdogTimeout); clearTimeout(idleRequestTimeout); clearInterval(liveWpmInterval); clearTimeout(currentTypeInterval);
+    if (observer) observer.disconnect();
+    panel.remove();
+    restoreBtn.remove();
+    alert("تم إطفاء السكربت نهائياً وحذفه من الصفحة بنجاح! 🛑");
+  }
+
+  function sendCommandToChat(text) {
+    iSentThisCommand = true;
+    simulateHumanTyping(text, 220, () => {
+      executeFinalSend();
+    });
+    setTimeout(() => { iSentThisCommand = false; }, 1200);
+  }
+
+  // 🧠 دالة المحاكاة البشرية الذكية المحدثة (توزيع انسيابي متناسق وخفيف للتباطؤ)
+  function simulateHumanTyping(text, totalDuration, callback) {
+    clearTimeout(currentTypeInterval); 
+    const input = document.querySelector("#tbox");
+    if (!input) return;
+
+    input.value = ""; 
+    
+    let weights = [];
+    let totalWeight = 0;
+    
+    for (let i = 0; i < text.length; i++) {
+      // وزن ميكرو-ديناميكي خفيف جداً وموزّع بدقة على الحروف (تفاوت طبيعي سلس يتراوح بين 0.85 و 1.15)
+      let w = 1.0 + (Math.random() * 0.3 - 0.15); 
+      
+      // تباطؤ خفيف جداً وملاحظ عند المسافات وبداية الكلمات لمحاكاة النقلة الطبيعية لليد بين الكلمات
+      if (text[i] === ' ' || (i > 0 && text[i-1] === ' ')) {
+        w += 0.25 + Math.random() * 0.15; 
+      }
+      
+      weights.push(w);
+      totalWeight += w;
+    }
+
+    // تحويل الأوزان التناسبية إلى مهل زمنية بالملي ثانية
+    let delays = weights.map(w => (w / totalWeight) * totalDuration);
+    let index = 0;
+
+    function typeNextChar() {
+      if (index < text.length) {
+        input.value += text[index];
+        ["input", "change"].forEach((ev) => input.dispatchEvent(new Event(ev, { bubbles: true })));
+        
+        let currentDelay = delays[index];
+        index++;
+        currentTypeInterval = setTimeout(typeNextChar, currentDelay);
+      } else {
+        if (callback) callback();
+      }
+    }
+    
+    typeNextChar();
+  }
+
+  function requestRandomSection() {
+    if (disableBotCommands || inTournament || !window.solverBotEnabled) return;
+    const sections = ["ويكي", "جش", "شرط", "اص", "جب", "رق", "كرر"]; 
+    const randomSec = sections[Math.floor(Math.random() * sections.length)];
+    sendCommandToChat(randomSec);
+  }
+
+  function resetIdleRequestTimer() {
+    clearTimeout(idleRequestTimeout);
+    idleRequestTimeout = setTimeout(() => { 
+      if (!disableBotCommands) { isAutoRequestBlocked = false; updateUI(); requestRandomSection(); }
+    }, 180000);
+  }
+
+  function resetBotWatchdog() {
+    clearTimeout(botWatchdogTimeout);
+    botWatchdogTimeout = setTimeout(() => {
+      if (window.solverBotEnabled && !inTournament && !disableBotCommands) { isAutoRequestBlocked = false; updateUI(); requestRandomSection(); }
+      resetBotWatchdog();
+    }, 30000);
+  }
+
+  function executeFinalSend() {
+    clearInterval(liveWpmInterval);
+    const btn = document.querySelector(".btn-primary") || document.querySelector("#sendbtn"), input = document.querySelector("#tbox");
+    if (!input) return;
+    if (typeof Tsend_TIGERHOST_UPLOAD === "function") Tsend_TIGERHOST_UPLOAD();
+    else if (btn) btn.click();
+    else input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, keyCode: 13, key: "Enter" }));
+  }
+
+  function introduceHumanTypos(str) {
+    if (!str || str.length < 5) return str;
+    
+    const letters = "ابتثجحخدذرزسشصضطظعغفقكلمنهويءئؤلاى";
+    const digits = "0123456789";
+    const allPool = letters + digits;
+    
+    let chars = str.split("");
+    let availableTypes = [0, 1, 2, 3, 4]; 
+
+    while (availableTypes.length > 0 && chars.length > 2) {
+      let randIdxInPool = Math.floor(Math.random() * availableTypes.length);
+      let selectedType = availableTypes[randIdxInPool];
+      let success = false;
+
+      if (selectedType === 0) {
+        let spaceIndices = [];
+        for (let i = 0; i < chars.length; i++) { if (chars[i] === " ") spaceIndices.push(i); }
+        if (spaceIndices.length > 0) {
+          let randSpace = spaceIndices[Math.floor(Math.random() * spaceIndices.length)];
+          chars.splice(randSpace, 1);
+          success = true;
+        }
+      } else if (selectedType === 1) {
+        let randIdx = Math.floor(Math.random() * chars.length);
+        chars.splice(randIdx, 1);
+        success = true;
+      } else if (selectedType === 2) {
+        let nonSpaces = [];
+        for (let i = 0; i < chars.length; i++) { if (chars[i] !== " ") nonSpaces.push(i); }
+        if (nonSpaces.length > 0) {
+          let targetCharIdx = nonSpaces[Math.floor(Math.random() * nonSpaces.length)];
+          chars[targetCharIdx] = digits[Math.floor(Math.random() * digits.length)];
+          success = true;
+        }
+      } else if (selectedType === 3) {
+        let randIdx = Math.floor(Math.random() * (chars.length + 1));
+        let randChar = allPool[Math.floor(Math.random() * allPool.length)];
+        chars.splice(randIdx, 0, randChar);
+        success = true;
+      } else if (selectedType === 4) {
+        let nonSpaces = [];
+        for (let i = 0; i < chars.length; i++) { if (chars[i] !== " ") nonSpaces.push(i); }
+        if (nonSpaces.length > 0) {
+          let targetCharIdx = nonSpaces[Math.floor(Math.random() * nonSpaces.length)];
+          chars[targetCharIdx] = allPool[Math.floor(Math.random() * allPool.length)];
+          success = true;
+        }
+      }
+
+      if (success) break;
+      availableTypes.splice(randIdxInPool, 1);
+    }
+    return chars.join("");
+  }
+
+  function undecorate(str) {
+    return str
+      .replace(/ٲ/g, "أ").replace(/ٳ/g, "إ").replace(/ٽ/g, "ث").replace(/ںُ/g, "ن")
+      .replace(/ڕ/g, "ر").replace(/ۆ/g, "و").replace(/ࢥ/g, "ق").replace(/ݦ/g, "م")
+      .replace(/ࢠ/g, "ب").replace(/ڄ/g, "ج").replace(/ڭ/g, "ك").replace(/ۂ/g, "ه")
+      .replace(/ــ/g, "");
+  }
+
+  function getNormalizedCondition(str) {
+    let s = str.replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").trim();
+    if (s.includes("اول كلمتين دبل")) return "اول كلمتين دبل";
+    if (s.includes("اكتب المقاله عكس") || s.includes("المقال عكس")) return "اكتب المقاله عكس";
+    if (s.includes("قبل الاخيره") || s.includes("قبل الاخير")) return "فكك الكلمه اللتي قبل الاخيره";
+    if (s.includes("الكلمه الثانيه") || s.includes("الكلمة الثانية")) return "فكك الكلمه الثانيه";
+    if (s.includes("بدل اخر كلمتين")) return "بدل اخر كلمتين";
+    if (s.includes("كرر اول كلمه واخر كلمه")) return "كرر أول كلمة وآخر كلمة";
+    if (s.includes("فكك اخر كلمه")) return "فكك آخر كلمة";
+    if (s.includes("فكك اول كلمه")) return "فكك أول كلمة";
+    return "";
+  }
+
+  function applyShartTransformation(wordsArr, condition) {
+    let w = [...wordsArr]; if (w.length === 0) return "";
+    const disassemble = (word) => word.split("").filter(Boolean).join(" ");
+    switch (condition) {
+      case "اول كلمتين دبل": if (w.length >= 2) w.splice(0, 2, w[0], w[0], w[1], w[1]);
+      else if (w.length === 1) w.splice(0, 1, w[0], w[0]); break;
+      case "اكتب المقاله عكس": w.reverse(); break;
+      case "فكك الكلمه اللتي قبل الاخيره": if (w.length >= 2) w[w.length - 2] = disassemble(w[w.length - 2]);
+      else w[0] = disassemble(w[0]); break;
+      case "فكك الكلمه الثانيه": if (w.length >= 2) w[1] = disassemble(w[1]); else w[0] = disassemble(w[0]);
+      break;
+      case "بدل اخر كلمتين": if (w.length >= 2) { let tmp = w[w.length - 1];
+        w[w.length - 1] = w[w.length - 2]; w[w.length - 2] = tmp; } break;
+      case "كرر أول كلمة وآخر كلمة": if (w.length >= 2) { w[0] = w[0] + " " + w[0];
+        w[w.length - 1] = w[w.length - 1] + " " + w[w.length - 1];
+      } else if (w.length === 1) { w[0] = w[0] + " " + w[0]; } break;
+      case "فكك آخر كلمة": w[w.length - 1] = disassemble(w[w.length - 1]); break;
+      case "فكك أول كلمة": w[0] = disassemble(w[0]); break;
+    }
+    return w.join(" ");
+  }
+
+  const chatBox = document.querySelector("#d2");
+  if (!chatBox) { alert("لم يتم العثور على شاشه الدردشة!"); return; }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.keyCode === 13) { clearInterval(liveWpmInterval); clearTimeout(sendTimeout); clearTimeout(currentTypeInterval); }
+  }, true);
+
+  const observer = new MutationObserver((mutations) => {
+    if (!window.solverBotEnabled) return;
+    for (const m of mutations) {
+      for (const node of m.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        
+        const userNode = node.querySelector(".uzr") || node.querySelector(".name") || node.querySelector("b") || node.querySelector(".username");
+        const senderName = userNode ? userNode.textContent.trim() : "";
+        const isFromBot = senderName.includes("M8AL BOT") || node.textContent.includes("M8AL BOT");
+
+        const msgNode = node.querySelector(".u-msg") || node.querySelector(".msg") || node;
+        let msgText = msgNode.textContent || "";
+        let cleanMsg = msgText.replace(/^[:\s\-،,]+/, "").trim();
+
+        let detectedCondition = getNormalizedCondition(cleanMsg);
+        if (isFromBot && detectedCondition) { lastShartCondition = detectedCondition; continue; }
+
+        const cmdMatch = cleanMsg.match(/^(ويكي|جش|شرط|اص|جب|رق|كرر|دبل)(\s+\d+)?$/);
+        if (cmdMatch) {
+          const matchedCmd = cmdMatch[1];
+          const map = { "ويكي": "wiki", "جش": "jash", "شرط": "shart", "اص": "as", "جب": "tash", "رق": "raq", "كرر": "karar", "دبل": "dabl" };
+          currentMode = map[matchedCmd]; inTournament = false;
+          if (!iSentThisCommand) { isAutoRequestBlocked = true; resetIdleRequestTimer(); }
+          updateUI(); clearInterval(liveWpmInterval); clearTimeout(currentTypeInterval); liveWpmLbl.textContent = "---"; targetWpmLbl.textContent = "---";
+          continue;
+        }
+
+        if (isFromBot && cleanMsg.includes("الأقسام اللي بالجولة")) {
+          const match = cleanMsg.match(/الأقسام اللي بالجولة\s*\(([^)]+)\)/);
+          if (match) {
+            const arabicModes = match[1].split(/\s+/).filter(Boolean);
+            const map = { "ويكي": "wiki", "جش": "jash", "شرط": "shart", "اص": "as", "جب": "tash", "رق": "raq", "كرر": "karar", "دبل": "dabl" };
+            tournamentModes = arabicModes.map(m => map[m]).filter(Boolean);
+            tournamentIdx = 0; inTournament = false;
+          }
+        }
+        if (isFromBot && (cleanMsg.includes("تم الجولة بدت") || cleanMsg.includes("تم الجوله بدت"))) {
+          inTournament = true;
+          tournamentIdx = 0; isFirstRound = true;
+          if (tournamentModes.length > 0) { currentMode = tournamentModes[0]; updateUI(); }
+          resetBotWatchdog();
+        }
+        if (isFromBot && (cleanMsg.includes("انتهت الجولة") || cleanMsg.includes("انهي الجولة") || cleanMsg.includes("انهي الجوله") || cleanMsg.includes("مبروك الفائز في الجولة"))) {
+          inTournament = false;
+          clearInterval(liveWpmInterval); clearTimeout(currentTypeInterval); liveWpmLbl.textContent = "---"; targetWpmLbl.textContent = "---"; resetBotWatchdog();
+          if (!isAutoRequestBlocked) { setTimeout(requestRandomSection, Math.floor(Math.random() * 2000) + 2500); }
+        }
+
+        if (cleanMsg === "ق4" && inTournament) {
+          if (isFirstRound) { isFirstRound = false; } 
+          else {
+            if (tournamentModes.length > 0) {
+              tournamentIdx = (tournamentIdx + 1) % tournamentModes.length;
+              currentMode = tournamentModes[tournamentIdx]; updateUI();
+            }
+          }
+          clearInterval(liveWpmInterval); clearTimeout(currentTypeInterval);
+          liveWpmLbl.textContent = "---"; targetWpmLbl.textContent = "---";
+          continue;
+        }
+
+        if (isFromBot && !inTournament && !isAutoRequestBlocked && (cleanMsg.startsWith("كفو يا") || cleanMsg.startsWith("لـــ") || cleanMsg === "شطب")) {
+          clearInterval(liveWpmInterval); clearTimeout(currentTypeInterval);
+          liveWpmLbl.textContent = "---"; targetWpmLbl.textContent = "---"; resetBotWatchdog();
+          setTimeout(requestRandomSection, Math.floor(Math.random() * 1500) + 2000);
+          continue;
+        }
+
+        let isSystemMsg = cleanMsg === "شطب" || 
+                           cleanMsg.startsWith("لـــ") || 
+                           cleanMsg.startsWith("كفو يا") ||
+                           cleanMsg.startsWith("النشرة") || 
+                           cleanMsg.includes("الأقسام اللي بالجولة") || 
+                           cleanMsg.includes("تم الجولة بدت") || 
+                           cleanMsg.includes("تم الجوله بدت") || 
+                           cleanMsg.includes("انتهت الجولة") || 
+                           cleanMsg.includes("انهي الجولة") ||
+                           cleanMsg.includes("انهي الجوله") || 
+                           cleanMsg.includes("مبروك الفائز") || 
+                           cleanMsg.startsWith("ق4") ||
+                           cleanMsg.includes("ثبتنا") ||             
+                           cleanMsg.includes("كلمات في الجول") ||   
+                           cleanMsg.includes("كلمات الجول");
+                           
+        if (isFromBot && !isSystemMsg) {
+          if (currentMode === "dabl") return;
+          let isQuestion = cleanMsg.includes(" ") || /[ٲٳڕࢥݦࢠٽںُۂۆڭڄ،,؛;.]/.test(cleanMsg);
+          
+          if (isQuestion) {
+            resetBotWatchdog();
+            let sanitizedMsg = cleanMsg.replace(/[،,؛;.]/g, " ");
+            
+            let words = sanitizedMsg.split(/\s+/).filter(w => {
+              let token = w.trim();
+              if (token.includes('@') || token.includes('12333333333')) return false;
+              if (currentMode !== "raq" && (/^\d+$/.test(token) || /^[\u0660-\u0669]+$/.test(token))) return false;
+              return Boolean(token);
+            });
+            if (/[ٲٳڕࢥݦࢠٽںُۂۆڭڄ]/.test(cleanMsg)) { currentMode = "as"; updateUI(); }
+
+            let answer = "";
+            if (["wiki", "jash", "tash", "raq"].includes(currentMode)) { 
+              answer = words.join(" ");
+            } else if (currentMode === "as") { 
+              let undecorated = undecorate(cleanMsg).replace(/[،,؛;.]/g, " ");
+              let ascWords = undecorated.split(/\s+/).filter(w => {
+                let token = w.trim();
+                if (token.includes('@') || token.includes('12333333333')) return false;
+                if (currentMode !== "raq" && (/^\d+$/.test(token) || /^[\u0660-\u0669]+$/.test(token))) return false;
+                return Boolean(token);
+              });
+              answer = ascWords.join(" "); 
+            } else if (currentMode === "shart") { 
+              answer = applyShartTransformation(words, lastShartCondition);
+            } else if (currentMode === "karar") {
+              let result = [];
+              let regex = /([^\s()]+)\s*\(\s*(\d+)\s*\)/g;
+              let match;
+              let found = false;
+              while ((match = regex.exec(cleanMsg)) !== null) {
+                found = true;
+                let word = match[1];
+                let count = parseInt(match[2], 10);
+                for (let i = 0; i < count; i++) { result.push(word); }
+              }
+              
+              if (found) {
+                answer = result.join(" ");
+              } else {
+                let cleanWords = words.map(w => w.replace(/[()]/g, "")).filter(Boolean);
+                let baseStr = cleanWords.join(" ");
+                answer = baseStr + " " + baseStr;
+              }
+            }
+
+            if (answer) {
+              answer = answer.replace(/[أإآ]/g, "ا");
+              cleanSentenceCount++;
+              if (cleanSentenceCount >= targetCleanLimit) {
+                answer = introduceHumanTypos(answer);
+                cleanSentenceCount = 0;
+                targetCleanLimit = Math.floor(Math.random() * 13) + 1;
+              }
+
+              if (answer.includes("12333333333") || answer.includes("..@") || answer.includes("@")) {
+                return;
+              }
+
+              updateUI();
+
+              // حساب إجمالي وقت الكتابة بناءً على المدخلات وسرعة الـ WPM المستهدفة
+              let finalWordsCount = answer.split(/\s+/).filter(Boolean).length || 1;
+              let targetWpm = 100;
+
+              let minVal = parseInt(minWpmInput ? minWpmInput.value : "", 10);
+              let maxVal = parseInt(maxWpmInput ? maxWpmInput.value : "", 10);
+
+              if (isNaN(minVal) || minVal <= 0) minVal = 70;
+              if (isNaN(maxVal) || maxVal <= 0) maxVal = 105;
+
+              if (minVal > maxVal) {
+                let temp = minVal; minVal = maxVal; maxVal = temp;
+              }
+
+              let baseWpm = Math.floor(Math.random() * (maxVal - minVal + 1)) + minVal;
+              if (currentMode === "karar") {
+                targetWpm = Math.floor(baseWpm * 1.4);
+              } else {
+                targetWpm = baseWpm;
+              }
+
+              targetWpmLbl.textContent = targetWpm;
+              let durSeconds = (finalWordsCount * 60) / targetWpm;
+              let delayMs = (durSeconds * 1000) - 45; 
+              if (delayMs < 100 || isNaN(delayMs)) delayMs = 150;
+
+              clearInterval(liveWpmInterval);
+              const questionStartTime = Date.now();
+              liveWpmInterval = setInterval(() => {
+                let elapsed = (Date.now() - questionStartTime) / 1000;
+                if (elapsed <= 0.02) elapsed = 0.02;
+
+                let currentCalculatedWpm = Math.round((finalWordsCount * 60) / elapsed);
+                if (currentCalculatedWpm > 999) currentCalculatedWpm = 999;
+                if (currentCalculatedWpm < 10) currentCalculatedWpm = 10;
+                
+                liveWpmLbl.textContent = currentCalculatedWpm;
+              }, 15);
+
+              // ⏱️ حساب وقت الاستيعاب وتنسيقه مع وقت الكتابة الكلي (مع حماية القيم الصغيرة لمنع التوقف)
+              clearTimeout(sendTimeout);
+              let comprehensionDelay = Math.floor(Math.random() * 150) + 450; // تأخير استيعاب وقراءة بين 450ms إلى 600ms
+              
+              let typingDuration = delayMs - comprehensionDelay;
+              if (typingDuration < 200) {
+                typingDuration = Math.max(delayMs * 0.6, 150);
+                comprehensionDelay = delayMs - typingDuration;
+                if (comprehensionDelay < 0) comprehensionDelay = 0;
+              }
+
+              // تفعيل السيناريو: انتظار الاستيعاب أولاً -> ثم البدء بالطباعة الانسيابية الموزعة -> ثم الإرسال
+              sendTimeout = setTimeout(() => {
+                if (window.solverBotEnabled) { 
+                  simulateHumanTyping(answer, typingDuration, () => {
+                    executeFinalSend(); 
+                  });
+                } 
+              }, comprehensionDelay);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  observer.observe(chatBox, { childList: true, subtree: true });
+  resetBotWatchdog();
+  setTimeout(requestRandomSection, 1000);
+})();
