@@ -1,0 +1,129 @@
+javascript:(function() {
+    if (window.myTgBotActive) {
+        alert("⚠️ السكربت شغال بالفعل!");
+        return;
+    }
+    window.myTgBotActive = true;
+
+    // 1. إنشاء واجهة تحكم عائمة
+    const ui = document.createElement('div');
+    ui.style.cssText = 'position:fixed; top:15px; right:15px; background-color:#2ecc71; color:white; padding:12px 15px; border-radius:8px; z-index:999999; font-family:Arial, sans-serif; font-size:14px; font-weight:bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor:pointer; direction:rtl; border:2px solid #27ae60;';
+    ui.innerHTML = '🤖 مساعد الطباعة الحي يعمل<br><span style="font-size:11px; font-weight:normal;">(انقر هنا لإيقاف السكربت)</span>';
+    document.body.appendChild(ui);
+
+    ui.onclick = () => {
+        window.myTgBotActive = false;
+        observer.disconnect();
+        ui.remove();
+        alert("🛑 تم إيقاف السكربت نهائياً.");
+    };
+
+    let isTyping = false;
+
+    // 2. دالة الطباعة الحية (حرفاً حرفاً) داخل مربع تيليجرام
+    async function typeAndSend(text) {
+        if (isTyping) return;
+        isTyping = true;
+        
+        // البحث عن مربع النص (يدعم نسختي تيليجرام ويب K و A)
+        const inputBox = document.querySelector('#editable-message-text') || document.querySelector('.input-message-input');
+        
+        if (!inputBox) {
+            console.log("❌ لم يتم العثور على مربع النص.");
+            isTyping = false;
+            return;
+        }
+
+        // تحديد المربع
+        inputBox.focus();
+        
+        // مسح أي نص قديم في المربع
+        document.execCommand('selectAll', false, null);
+        document.execCommand('delete', false, null);
+
+        // طباعة الحروف حرفاً حرفاً
+        for (let i = 0; i < text.length; i++) {
+            if (!window.myTgBotActive) break; // إيقاف الطوارئ
+            
+            // استخدام execCommand لضمان تفعيل أحداث React/Vue في تيليجرام
+            document.execCommand('insertText', false, text[i]);
+            
+            // محاكاة سرعة البشر (انتظار بين 40 إلى 90 جزء من الثانية لكل حرف)
+            // إضافة تأخير بسيط عند المسافات
+            let delay = text[i] === ' ' ? Math.random() * 80 + 80 : Math.random() * 50 + 40;
+            await new Promise(r => setTimeout(r, delay)); 
+        }
+
+        if (window.myTgBotActive) {
+            await new Promise(r => setTimeout(r, 150)); // انتظار بسيط قبل الإرسال
+            
+            // محاكاة الضغط على زر الإرسال (Enter)
+            const enterEvent = new KeyboardEvent('keydown', { 
+                bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13 
+            });
+            inputBox.dispatchEvent(enterEvent);
+            
+            // بديل في حال لم يعمل زر الانتر: محاولة النقر على زر الإرسال نفسه
+            setTimeout(() => {
+                let sendBtn = document.querySelector('.btn-send, .btn-send-container button, button.send');
+                if (sendBtn) sendBtn.click();
+            }, 50);
+        }
+        
+        isTyping = false;
+    }
+
+    // 3. مراقب المحادثة لالتقاط رسائل البوت
+    const observer = new MutationObserver((mutations) => {
+        if (!window.myTgBotActive || isTyping) return;
+        
+        for (let mutation of mutations) {
+            for (let node of mutation.addedNodes) {
+                if (node.nodeType === 1) { // إذا كان عنصر HTML
+                    let msgElement = node.querySelector('.message, .text-content, .message-content') || node;
+                    
+                    if (msgElement && msgElement.innerText) {
+                        let text = msgElement.innerText.trim();
+                        
+                        // تجاهل رسائلك الشخصية
+                        if (node.classList && (node.classList.contains('own') || node.classList.contains('is-out'))) continue;
+                        
+                        // 1. اكتشاف نهاية الجولة (رسالة السرعة) وإرسال "طش"
+                        if (text.includes("سرعة عالية مره") || text.includes("WPM")) {
+                            console.log("🏁 انتهت الجولة. جاري طلب جولة جديدة...");
+                            setTimeout(() => typeAndSend("طش"), randomDelay(1200, 2000));
+                            return;
+                        }
+                        
+                        // 2. تنظيف النص المرسل (إزالة الرموز)
+                        // \p{L} للأحرف (بما فيها العربية) و \p{N} للأرقام
+                        let cleanText = text.replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
+                        
+                        // فلترة الكلمات النظامية للبوت لمنع تكرارها
+                        let isSystemMessage = text.includes("الأقسام") || text.includes("الجولة") || text.includes("مبروك") || text.includes("شطب") || text.includes("النشرة");
+                        
+                        // إذا كان نصاً صالحاً للكتابة
+                        if (cleanText.length > 1 && !cleanText.includes("طش") && !isSystemMessage) {
+                            console.log("📝 جاري طباعة:", cleanText);
+                            // تأخير الاستيعاب البشري قبل بدء الكتابة
+                            setTimeout(() => typeAndSend(cleanText), randomDelay(400, 700));
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    function randomDelay(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // استهداف حاوية الدردشة لمراقبتها
+    const chatContainer = document.querySelector('.messages-layout') || document.querySelector('.MessageList') || document.body;
+    observer.observe(chatContainer, { childList: true, subtree: true });
+
+    // ضربة البداية
+    setTimeout(() => typeAndSend("طش"), 500);
+
+})();
